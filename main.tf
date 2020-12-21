@@ -1,0 +1,47 @@
+locals {
+  enabled = var.enabled ? 1 : 0
+}
+
+resource "helm_release" "notifier" {
+  count = local.enabled
+
+  name       = var.release_name
+  chart      = var.chart_name
+  repository = var.chart_repository_url
+  version    = var.chart_version
+  namespace  = var.namespace
+
+  max_history = var.max_history
+
+  values = [
+    data.template_file.values[0].rendered,
+  ]
+}
+
+data "template_file" "values" {
+  count = local.enabled
+
+  template = file("${path.module}/templates/values.yaml")
+
+  vars = {
+    schedule    = var.schedule
+    ttl_seconds = var.ttl_seconds
+
+    image       = var.image
+    tag         = var.tag
+    pull_policy = var.pull_policy
+
+    gcp_billing_account_id = var.gcp_billing_account_id
+    gcp_project_ids        = join(",", var.gcp_project_ids)
+    gcp_sa_key             = jsonencode(base64decode(google_service_account_key.notifier[0].private_key))
+    slack_webhook          = var.slack_webhook
+
+    resources = jsonencode(var.resources)
+
+    node_selector = jsonencode(var.node_selector)
+    tolerations   = jsonencode(var.tolerations)
+    affinity      = jsonencode(var.affinity)
+    labels        = jsonencode(var.labels)
+    annotations   = jsonencode(var.annotations)
+  }
+}
